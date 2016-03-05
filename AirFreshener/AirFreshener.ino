@@ -51,7 +51,7 @@ volatile int sprayAmount = -1;
 unsigned long sprayStartTime;
 int sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
 int sprayDelay = 2;
-const int maxSpraysLeft = 6000;
+const int maxSpraysLeft = 2400;
 int spraysLeft = maxSpraysLeft;
 volatile bool spraying = false;
 
@@ -240,6 +240,13 @@ void MenuActions(){
   }
 }
 void InUseActions(){
+  int topStringLength = topStringCur.length();
+  String tempString = String(getTemperature()) + String((char)223) + String("C");
+  for (int i = topStringLength; i < 16 - tempString.length(); i++) {
+    topStringCur += String((char)30);
+  }
+  topStringCur += tempString;
+  
   switch (usageMode) {
     case 0: // Unknown
       // Measure for 15 seconds how much movement there is.
