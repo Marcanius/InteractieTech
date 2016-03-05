@@ -26,10 +26,10 @@ int analogButtonPrev, analogButtonCur;
 int tempCur, tempPrev;
 
 // LCD variables
-char* topStringCur = "";
-char* topStringPrev = "";
-char* bottomStringPrev = "";
-char* bottomStringCur = "";
+String topStringCur = "";
+String topStringPrev = "";
+String bottomStringPrev = "";
+String bottomStringCur = "";
 
 // Debounce variables
 int debounceDelay = 50;
@@ -41,11 +41,19 @@ int activeMenuItem = 2;
 bool exitPressed = false;
 
 // In Use variables
-int usageMode = 0;
+int usageMode;
 unsigned long inUseStartTime;
 const unsigned long numberOneTime = 60000;
 const unsigned long numberTwoTime = 6000;
-int sprayAmount = 0;
+
+// Spray variables
+volatile int sprayAmount = -1;
+unsigned long sprayStartTime;
+int sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
+int sprayDelay = 2;
+const int maxSpraysLeft = 6000;
+int spraysLeft = maxSpraysLeft;
+volatile bool spraying = false;
 
 char* stateNames[] = {
   "Not in use", // Idle
@@ -85,7 +93,7 @@ void setup() {
   buttonPrev = HIGH;
   
   lcd.begin(16,2);
-  // lcd.print("starting up");
+  
   delay(1000);
   interrupts();
 }
@@ -120,7 +128,7 @@ void loop() {
       break;
     default:
       topStringCur = "ERROR:";
-      bottomStringCur = "Unexpected state";
+      bottomStringCur = String("Unexp. state: ") + String(currentState);
       break;
   }
 
@@ -128,7 +136,7 @@ void loop() {
 }
 
 void IdleChange() {
-  if (motion == LOW){
+  if (true){//motion == LOW){
     currentState = 1;
     usageMode = 0;
     inUseStartTime = millis();
@@ -140,31 +148,32 @@ void IdleChange() {
 }
 void InUseChange(){
   // If a menu button is pressed.
-  if (analogButtonCur == 0){
+  if (analogButtonCur == 0) {
     currentState = 2;
     MenuActions();
   }
   // If the seat has been lifted.
-  //else if (false){//magnetVoltPrev != magnetVoltCur){
+  //else if (false){//magnetVoltPrev != magnetVoltCur) {
   //  currentState = 3;
   //  InUseActions();
   //}
   // If the distance sensor no longer senses anything for 5 seconds.
-  else if (false){//getDistance() <= 0){
-    currentState = 0;
+  else if (spraying){//getDistance() <= 0) {
     if (usageMode == 3) {
       // If was cleaning, return to idle.
       currentState = 0;
+      spraying = false;
       IdleActions();
     }
     else {
       // Else, spray.
       currentState = 3;
+      sprayStartTime = millis();
       SprayActions();
     }
     usageMode = 0;
   }
-  else{
+  else {
     InUseActions();
   }
 }
@@ -181,7 +190,7 @@ void MenuChange(){
 }
 void SprayChange(){
   // When we have finished spraying.
-  if (sprayAmount == 0){
+  if (!spraying){
     currentState = 0;
     IdleActions();
   }
@@ -192,6 +201,7 @@ void SprayChange(){
 
 void IdleActions(){
   // Do nothing.
+  bottomStringCur = "";
   return;
 }
 void MenuActions(){
@@ -225,7 +235,9 @@ void InUseActions(){
     case 1: // Number 1
       // After one minute, switch to 2.
       if (millis() - inUseStartTime >= numberTwoTime) {
-        usageMode = 2;
+        //usageMode = 2;
+        //currentState = 3;
+        spraying = true;
       }
       sprayAmount = 1;
       break;
@@ -241,7 +253,23 @@ void InUseActions(){
 }
 void SprayActions(){
   // Spray.
-  return;
+  if (!spraying) {
+    return;
+  }
+
+  unsigned long currentTime = millis();
+  if (currentTime - sprayStartTime >= sprayDelays[sprayDelay] * 1000) {
+    sprayStartTime = currentTime;
+    sprayAmount--;
+    spraysLeft--;
+    if (sprayAmount == 0) {
+      spraying = false;
+    }
+  }
+  else {
+    topStringCur += String(" in ") + String(sprayDelays[sprayDelay] - (currentTime - sprayStartTime) / 1000);
+    bottomStringCur = String(spraysLeft) + String(" sprays left");
+  }
 }
 
 int getAnalogButtonPressed() {
@@ -306,6 +334,9 @@ void sprayInterrupt() {
   buttonCur = digitalRead(buttonPort);
   if (buttonPrev == LOW && buttonCur == HIGH) {
     lastInterruptTime = millis();
+    sprayAmount = 1;
+    spraying = true;
+    sprayStartTime = millis();
     currentState = 3;
   }
   buttonPrev = buttonCur;
