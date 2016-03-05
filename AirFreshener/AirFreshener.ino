@@ -12,7 +12,7 @@ const int motionPort = -1, magnetPort = -1, lightPort = -1, tempPort = -1;
 const int echoPort = -1, triggerPort = -1;
 const int buttonPort = 2;
 const int analogButtonsPort = A0;
-const int sprayPort = -1;
+const int sprayPort = 13;
 LiquidCrystal lcd(12, 11, 7, 6, 5, 4);
 OneWire oneWire(tempPort);
 DallasTemperature tempSensor(&oneWire);
@@ -26,10 +26,11 @@ int analogButtonPrev, analogButtonCur;
 int tempCur, tempPrev;
 
 // LCD variables
-String topStringCur = "";
-String topStringPrev = "";
-String bottomStringPrev = "";
-String bottomStringCur = "";
+String topStringCur;
+String topStringPrev;
+String bottomStringPrev;
+String bottomStringCur;
+String tempString;
 
 // Debounce variables
 int debounceDelay = 50;
@@ -43,7 +44,8 @@ bool exitPressed = false;
 // In Use variables
 int usageMode;
 unsigned long inUseStartTime;
-const unsigned long numberOneTime = 60000;
+unsigned long tempUpdatedTime;
+//const unsigned long numberOneTime = 60000;
 const unsigned long numberTwoTime = 6000;
 
 // Spray variables
@@ -75,7 +77,7 @@ char* menuItemNames[] = {
 
 void setup() {
   // put your setup code here, to run once:
-  currentState = 1;
+  //currentState = 1;
   noInterrupts();
   // Set the ports
   pinMode(motionPort, INPUT);
@@ -128,7 +130,7 @@ void loop() {
       break;
     default:
       topStringCur = "ERROR:";
-      bottomStringCur = String("Unexp. state: ") + String(currentState);
+      bottomStringCur = "Unexp. state: " + String(currentState);
       break;
   }
 
@@ -211,8 +213,8 @@ void MenuActions(){
     bottomStringCur += String(sprayDelays[sprayDelay]);
   }
 
-  if (analogButtonPrev == -1) {
-    switch (analogButtonCur) {
+  if (analogButtonCur == -1) {
+    switch (analogButtonPrev) {
       case 0:
         activeMenuItem++;
         activeMenuItem %= 3;
@@ -240,10 +242,11 @@ void MenuActions(){
   }
 }
 void InUseActions(){
-  int topStringLength = topStringCur.length();
-  String tempString = String(getTemperature()) + String((char)223) + String("C");
-  for (int i = topStringLength; i < 16 - tempString.length(); i++) {
-    topStringCur += String((char)30);
+  unsigned long currentTime = millis();
+  
+  if (currentTime - tempUpdatedTime >= 2000) {
+    tempString = "     " + String(getTemperature()) + (char)223 + "C";;
+    tempUpdatedTime = currentTime;
   }
   topStringCur += tempString;
   
@@ -256,7 +259,7 @@ void InUseActions(){
       break;
     case 1: // Number 1
       // After one minute, switch to 2.
-      if (millis() - inUseStartTime >= numberTwoTime) {
+      if (currentTime - inUseStartTime >= numberTwoTime) {
         //usageMode = 2;
         //currentState = 3;
         spraying = true;
@@ -280,7 +283,8 @@ void SprayActions(){
   }
 
   unsigned long currentTime = millis();
-  if (currentTime - sprayStartTime >= sprayDelays[sprayDelay] * 1000) {
+  unsigned long timePassed = currentTime - sprayStartTime;
+  if (timePassed >= sprayDelays[sprayDelay] * 1000 + 1500) {
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
@@ -288,9 +292,13 @@ void SprayActions(){
       spraying = false;
     }
   }
+  else if (timePassed >= (sprayDelays[sprayDelay] + 1) * 1000) {
+    digitalWrite(sprayPort, LOW);
+  }
   else {
-    topStringCur += String(" in ") + String(sprayDelays[sprayDelay] - (currentTime - sprayStartTime) / 1000);
-    bottomStringCur = String(spraysLeft) + String(" shots left");
+    topStringCur += " in " + String(sprayDelays[sprayDelay] - timePassed / 1000);
+    bottomStringCur = String(spraysLeft) + " shots left";
+    digitalWrite(sprayPort, HIGH);
   }
 }
 
@@ -322,11 +330,6 @@ int getTemperature() {
   // Get the temperature from the temperature sensor.
   tempSensor.requestTemperatures();
   return tempSensor.getTempCByIndex(0);
-}
-
-int getDistance() {
-  // Get the distance from the distance sensor.
-  return sonar.ping_cm();
 }
 
 bool isBouncing(unsigned long lastTime) {
