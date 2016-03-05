@@ -267,6 +267,9 @@ void InUseActions(){
         }
       }
       else {
+        timesChecked = 0;
+        highTimes = 0;
+        
         if (highTimes * 100 / timesChecked >= cleaningMotionPercentage) {
           usageMode = 3;
         }
@@ -277,7 +280,7 @@ void InUseActions(){
       break;
     case 1: // Number 1
       // After some time, switch to 2.
-      if (currentTime - inUseStartTime >= numberTwoTime) {
+      if (currentTime - inUseStartTime >= numberTwoTime + numberOneTime) {
         //usageMode = 2;
         //currentState = 3;
         spraying = true;
