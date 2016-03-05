@@ -8,11 +8,11 @@
 volatile byte currentState;
 
 // Ports
-const int motionPort = -1, magnetPort = -1, lightPort = -1, tempPort = -1;
+const int motionPort = 10, magnetPort = -1, lightPort = -1, tempPort = 8;
 const int echoPort = -1, triggerPort = -1;
 const int buttonPort = 2;
 const int analogButtonsPort = A0;
-const int sprayPort = 13;
+const int sprayPort = -1;
 LiquidCrystal lcd(12, 11, 7, 6, 5, 4);
 OneWire oneWire(tempPort);
 DallasTemperature tempSensor(&oneWire);
@@ -45,8 +45,12 @@ bool exitPressed = false;
 int usageMode;
 unsigned long inUseStartTime;
 unsigned long tempUpdatedTime;
-//const unsigned long numberOneTime = 60000;
-const unsigned long numberTwoTime = 6000;
+// In whole percentages, how much % of the time the motion sensor
+// has to give HIGH to switch to 'cleaning' instead of 'number 1'.
+const int cleaningMotionPercentage = 90;
+unsigned long timesChecked, highTimes;
+const unsigned long numberOneTime = 6000;
+const unsigned long numberTwoTime = 5000;
 
 // Spray variables
 volatile int sprayAmount = -1;
@@ -134,11 +138,12 @@ void loop() {
       break;
   }
 
+  digitalWrite(13, digitalRead(motionPort));
   printLCD();
 }
 
 void IdleChange() {
-  if (true){//motion == LOW){
+  if (motion == HIGH){
     currentState = 1;
     usageMode = 0;
     inUseStartTime = millis();
@@ -245,7 +250,7 @@ void InUseActions(){
   unsigned long currentTime = millis();
   
   if (currentTime - tempUpdatedTime >= 2000) {
-    tempString = "     " + String(getTemperature()) + (char)223 + "C";;
+    tempString = "      " + String(getTemperature()) + (char)223 + "C";
     tempUpdatedTime = currentTime;
   }
   topStringCur += tempString;
@@ -255,10 +260,23 @@ void InUseActions(){
       // Measure for 15 seconds how much movement there is.
       // If there is a lot of movement, switch to 3/cleaning.
       // Else, switch to 1.
-      usageMode = 1;
+      if (currentTime - inUseStartTime <= numberOneTime) {
+        timesChecked++;
+        if (motion == HIGH) {
+          highTimes++;
+        }
+      }
+      else {
+        if (highTimes * 100 / timesChecked >= cleaningMotionPercentage) {
+          usageMode = 3;
+        }
+        else {
+          usageMode = 1;
+        }
+      }
       break;
     case 1: // Number 1
-      // After one minute, switch to 2.
+      // After some time, switch to 2.
       if (currentTime - inUseStartTime >= numberTwoTime) {
         //usageMode = 2;
         //currentState = 3;
