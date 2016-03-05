@@ -5,24 +5,24 @@
 #include <NewPing.h>
 
 // A byte representing the state we are in.
-volatile byte currentState;
+volatile int currentState;
 
 // Ports
-const int motionPort = 10, magnetPort = -1, lightPort = -1, tempPort = 8;
-const int echoPort = -1, triggerPort = -1;
-const int buttonPort = 2;
-const int analogButtonsPort = A0;
-const int sprayPort = -1;
+const byte motionPort = 10, tempPort = 8;
+const byte echoPort = 9, triggerPort = 3;
+const byte buttonPort = 2;
+const byte analogButtonsPort = A0;
+const byte sprayPort = A1;
 LiquidCrystal lcd(12, 11, 7, 6, 5, 4);
 OneWire oneWire(tempPort);
 DallasTemperature tempSensor(&oneWire);
-NewPing sonar(triggerPort, echoPort, 300);
+NewPing sonar(triggerPort, echoPort, 100);
 
 // SensorData
-int magnetVoltCur, magnetVoltPrev;
-int motion;
-int buttonPrev, buttonCur;
-int analogButtonPrev, analogButtonCur;
+//int magnetVoltCur, magnetVoltPrev;
+byte motion;
+byte buttonPrev, buttonCur;
+byte analogButtonPrev, analogButtonCur;
 int tempCur, tempPrev;
 
 // LCD variables
@@ -33,12 +33,12 @@ String bottomStringCur;
 String tempString;
 
 // Debounce variables
-int debounceDelay = 50;
+const byte debounceDelay = 50;
 unsigned long lastInterruptTime;
 unsigned long lastAnalogButtonReadTime;
 
 // Menu variables
-int activeMenuItem = 2;
+byte activeMenuItem = 2;
 bool exitPressed = false;
 
 // In Use variables
@@ -47,13 +47,15 @@ unsigned long inUseStartTime;
 unsigned long tempUpdatedTime;
 // In whole percentages, how much % of the time the motion sensor
 // has to give HIGH to switch to 'cleaning' instead of 'number 1'.
-const int cleaningMotionPercentage = 90;
+const int cleaningMotionPercentage = 70;
 unsigned long timesChecked, highTimes;
 const unsigned long numberOneTime = 6000;
 const unsigned long numberTwoTime = 5000;
+unsigned long lastDistanceCheckTime;
+int timesNoOneThere;
 
 // Spray variables
-volatile int sprayAmount = -1;
+volatile int sprayAmount = 0;
 unsigned long sprayStartTime;
 int sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
 int sprayDelay = 2;
@@ -85,8 +87,6 @@ void setup() {
   noInterrupts();
   // Set the ports
   pinMode(motionPort, INPUT);
-  pinMode(magnetPort, INPUT);
-  pinMode(lightPort, INPUT);
   pinMode(buttonPort, INPUT);
   pinMode(tempPort, INPUT);
 
@@ -99,6 +99,7 @@ void setup() {
   buttonPrev = HIGH;
   
   lcd.begin(16,2);
+  //Serial.begin(9600);
   
   delay(1000);
   interrupts();
@@ -108,11 +109,9 @@ void loop() {
   // put your main code here, to run repeatedly:
   // Update sensor vals.
   // Write away the previous values.
-  magnetVoltPrev = magnetVoltCur;
   analogButtonPrev = analogButtonCur;
   
   // Sense the new values.
-  magnetVoltCur = digitalRead(magnetPort);
   motion = digitalRead(motionPort);
   analogButtonCur = getAnalogButtonPressed();
   
@@ -133,17 +132,23 @@ void loop() {
       SprayChange();
       break;
     default:
-      topStringCur = "ERROR:";
-      bottomStringCur = "Unexp. state: " + String(currentState);
+      topStringCur = currentState + 48;
       break;
   }
 
-  digitalWrite(13, digitalRead(motionPort));
+  //digitalWrite(13, digitalRead(motionPort));
+  if (noOneThere()) {
+    digitalWrite(13, HIGH);
+  }
+  else {
+    digitalWrite(13, LOW);
+  }
   printLCD();
 }
 
 void IdleChange() {
-  if (motion == HIGH){
+  if (!noOneThere()){
+    //lcd.print("a");
     currentState = 1;
     usageMode = 0;
     inUseStartTime = millis();
@@ -159,26 +164,22 @@ void InUseChange(){
     currentState = 2;
     MenuActions();
   }
-  // If the seat has been lifted.
-  //else if (false){//magnetVoltPrev != magnetVoltCur) {
-  //  currentState = 3;
-  //  InUseActions();
-  //}
   // If the distance sensor no longer senses anything for 5 seconds.
-  else if (spraying){//getDistance() <= 0) {
+  else if (noOneThere()) {
+    usageMode = 0;
     if (usageMode == 3) {
       // If was cleaning, return to idle.
       currentState = 0;
       spraying = false;
       IdleActions();
     }
-    else {
+    if (usageMode < 3) {
       // Else, spray.
       currentState = 3;
+      spraying = true;
       sprayStartTime = millis();
       SprayActions();
     }
-    usageMode = 0;
   }
   else {
     InUseActions();
@@ -260,6 +261,7 @@ void InUseActions(){
       // Measure for 15 seconds how much movement there is.
       // If there is a lot of movement, switch to 3/cleaning.
       // Else, switch to 1.
+      sprayAmount = 0;
       if (currentTime - inUseStartTime <= numberOneTime) {
         timesChecked++;
         if (motion == HIGH) {
@@ -267,23 +269,22 @@ void InUseActions(){
         }
       }
       else {
-        timesChecked = 0;
-        highTimes = 0;
-        
         if (highTimes * 100 / timesChecked >= cleaningMotionPercentage) {
           usageMode = 3;
         }
         else {
           usageMode = 1;
         }
+        
+        timesChecked = 0;
+        highTimes = 0;
       }
       break;
     case 1: // Number 1
       // After some time, switch to 2.
       if (currentTime - inUseStartTime >= numberTwoTime + numberOneTime) {
-        //usageMode = 2;
-        //currentState = 3;
-        spraying = true;
+        usageMode = 2;
+        //spraying = true;
       }
       sprayAmount = 1;
       break;
@@ -291,6 +292,7 @@ void InUseActions(){
       sprayAmount = 2;
       break;
     case 3: // Cleaning
+      sprayAmount = 0;
       break;
     default:
       break;
@@ -299,7 +301,8 @@ void InUseActions(){
 }
 void SprayActions(){
   // Spray.
-  if (!spraying) {
+  if (sprayAmount == 0) {
+    spraying = false;
     return;
   }
 
@@ -309,7 +312,7 @@ void SprayActions(){
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
-    if (sprayAmount == 0) {
+    if (sprayAmount <= 0) {
       spraying = false;
     }
   }
@@ -318,8 +321,27 @@ void SprayActions(){
   }
   else {
     topStringCur += " in " + String(sprayDelays[sprayDelay] - timePassed / 1000);
-    bottomStringCur = String(spraysLeft) + " shots left";
+    bottomStringCur = String(spraysLeft) + F(" shots left");
     digitalWrite(sprayPort, HIGH);
+  }
+}
+
+bool noOneThere() {
+  unsigned long currentTime = millis();
+  if (currentTime - lastDistanceCheckTime >= 500) {
+    lastDistanceCheckTime = currentTime;
+    if (sonar.ping_cm() == 0 && motion == LOW) {
+      timesNoOneThere++;
+    }
+    else {
+      timesNoOneThere = 0;
+    }
+  }
+  if (timesNoOneThere >= 2 * 5) {
+    return true;
+  }
+  else {
+    return false;
   }
 }
 
