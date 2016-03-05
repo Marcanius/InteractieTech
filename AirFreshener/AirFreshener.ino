@@ -68,7 +68,7 @@ char* usageNames[] = {
   "Cleaning"
 };
 char* menuItemNames[] = {
-  ">Set spray delay",
+  ">Spray delay: ",
   ">Reset # shots",
   ">Exit"
 };
@@ -207,20 +207,35 @@ void IdleActions(){
 void MenuActions(){
   // Show the menu options and currently selected one.
   bottomStringCur = menuItemNames[activeMenuItem];
+  if (activeMenuItem == 0) {
+    bottomStringCur += String(sprayDelays[sprayDelay]);
+  }
 
   if (analogButtonPrev == -1) {
-    if (analogButtonCur == 0) {
-      // If the first button has been pressed:
-      activeMenuItem++;
-      activeMenuItem %= 3;
-    }
-  
-    if (analogButtonCur == 1) {
-      if (activeMenuItem == 2) {
-        // If the second button has been pressed:
-        exitPressed = true;
-        activeMenuItem = 2;
-      }
+    switch (analogButtonCur) {
+      case 0:
+        activeMenuItem++;
+        activeMenuItem %= 3;
+        break;
+      case 1:
+        switch (activeMenuItem) {
+          case 0:
+            sprayDelay++;
+            sprayDelay %= 9;
+            break;
+          case 1:
+            spraysLeft = maxSpraysLeft;
+            break;
+          case 2:
+            exitPressed = true;
+            activeMenuItem = 2;
+            break;
+          default:
+            break;
+        }
+        break;
+      default:
+        break;
     }
   }
 }
@@ -268,7 +283,7 @@ void SprayActions(){
   }
   else {
     topStringCur += String(" in ") + String(sprayDelays[sprayDelay] - (currentTime - sprayStartTime) / 1000);
-    bottomStringCur = String(spraysLeft) + String(" sprays left");
+    bottomStringCur = String(spraysLeft) + String(" shots left");
   }
 }
 
