@@ -8,8 +8,8 @@
 volatile int currentState;
 
 // Ports
-const byte motionPort = 10, tempPort = 8;
-const byte echoPort = 9, triggerPort = 3;
+const byte motionPort = 3, tempPort = 8;
+const byte echoPort = 9, triggerPort = 10;
 const byte buttonPort = 2;
 const byte analogButtonsPort = A0;
 const byte sprayPort = A1;
@@ -20,10 +20,9 @@ NewPing sonar(triggerPort, echoPort, 100);
 
 // SensorData
 //int magnetVoltCur, magnetVoltPrev;
-byte motion;
+volatile byte motion;
 byte buttonPrev, buttonCur;
-byte analogButtonPrev, analogButtonCur;
-int tempCur, tempPrev;
+char analogButtonPrev, analogButtonCur;
 
 // LCD variables
 String topStringCur;
@@ -42,23 +41,23 @@ byte activeMenuItem = 2;
 bool exitPressed = false;
 
 // In Use variables
-int usageMode;
+byte usageMode;
 unsigned long inUseStartTime;
 unsigned long tempUpdatedTime;
 // In whole percentages, how much % of the time the motion sensor
 // has to give HIGH to switch to 'cleaning' instead of 'number 1'.
-const int cleaningMotionPercentage = 70;
+const int cleaningMotionPercentage = 95;
 unsigned long timesChecked, highTimes;
 const unsigned long numberOneTime = 6000;
 const unsigned long numberTwoTime = 5000;
-unsigned long lastDistanceCheckTime;
+unsigned long lastCheckTimee;
 int timesNoOneThere;
 
 // Spray variables
 volatile int sprayAmount = 0;
 unsigned long sprayStartTime;
-int sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
-int sprayDelay = 2;
+byte sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
+byte sprayDelay = 2;
 const int maxSpraysLeft = 2400;
 int spraysLeft = maxSpraysLeft;
 volatile bool spraying = false;
@@ -92,6 +91,7 @@ void setup() {
 
   // Set the interrupts
   attachInterrupt(digitalPinToInterrupt(buttonPort), sprayInterrupt, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(motionPort), motionInterrupt, CHANGE);
 
   // Start temperature sensor
   tempSensor.begin();
@@ -112,7 +112,7 @@ void loop() {
   analogButtonPrev = analogButtonCur;
   
   // Sense the new values.
-  motion = digitalRead(motionPort);
+  //motion = digitalRead(motionPort);
   analogButtonCur = getAnalogButtonPressed();
   
   topStringCur = stateNames[currentState];
@@ -308,7 +308,7 @@ void SprayActions(){
 
   unsigned long currentTime = millis();
   unsigned long timePassed = currentTime - sprayStartTime;
-  if (timePassed >= sprayDelays[sprayDelay] * 1000 + 1500) {
+  if (timePassed >= (unsigned long)sprayDelays[sprayDelay] * 1000 + 1500) {
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
@@ -316,7 +316,7 @@ void SprayActions(){
       spraying = false;
     }
   }
-  else if (timePassed >= (sprayDelays[sprayDelay] + 1) * 1000) {
+  else if (timePassed >= (unsigned long)(sprayDelays[sprayDelay] + 1) * 1000) {
     digitalWrite(sprayPort, LOW);
   }
   else {
@@ -328,8 +328,8 @@ void SprayActions(){
 
 bool noOneThere() {
   unsigned long currentTime = millis();
-  if (currentTime - lastDistanceCheckTime >= 500) {
-    lastDistanceCheckTime = currentTime;
+  if (currentTime - lastCheckTimee >= 500) {
+    lastCheckTimee = currentTime;
     if (sonar.ping_cm() == 0 && motion == LOW) {
       timesNoOneThere++;
     }
@@ -408,5 +408,11 @@ void sprayInterrupt() {
     currentState = 3;
   }
   buttonPrev = buttonCur;
+}
+
+void motionInterrupt() {
+  // Interrupt function for the motion sensor.
+
+  motion = digitalRead(motionPort);
 }
 
