@@ -1,3 +1,5 @@
+#include <NewPing.h>
+
 // Libraries
 #include <LiquidCrystal.h>
 #include <DallasTemperature.h>
@@ -145,6 +147,7 @@ void loop() {
   else {
     digitalWrite(13, LOW);
   }
+  
   printLCD();
 }
 
