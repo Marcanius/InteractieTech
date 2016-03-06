@@ -8,12 +8,13 @@
 volatile int currentState;
 
 // Ports
-const byte motionPort = 3, tempPort = 8;
-const byte echoPort = 9, triggerPort = 10;
+const byte motionPort = 3, tempPort = 9;
+const byte echoPort = 8, triggerPort = 10;
 const byte buttonPort = 2;
-const byte analogButtonsPort = A0;
-const byte sprayPort = A1;
-LiquidCrystal lcd(12, 11, 7, 6, 5, 4);
+const byte analogButtonsPort = A1;
+const byte sprayPort = A2;
+const byte lightPort = A0;
+LiquidCrystal lcd(12, 11, 5, 4, 6, 7);
 OneWire oneWire(tempPort);
 DallasTemperature tempSensor(&oneWire);
 NewPing sonar(triggerPort, echoPort, 100);
