@@ -103,7 +103,7 @@ void setup() {
   buttonPrev = HIGH;
   
   lcd.begin(16,2);
-  //Serial.begin(9600);
+  Serial.begin(9600);
   
   delay(1000);
   interrupts();
@@ -313,21 +313,28 @@ void SprayActions(){
 
   unsigned long currentTime = millis();
   unsigned long timePassed = currentTime - sprayStartTime;
-  if (timePassed >= (unsigned long)sprayDelays[sprayDelay] * 1000 + 1500) {
+  if (timePassed >= (unsigned long)sprayDelays[sprayDelay] * 1000 + 26000) {
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
+    analogWrite(sprayPort, 0);
+    digitalWrite(13, LOW);
+    Serial.print("writing low");
     if (sprayAmount <= 0) {
       spraying = false;
     }
   }
   else if (timePassed >= (unsigned long)sprayDelays[sprayDelay] * 1000 + 1000) {
-    analogWrite(sprayPort, 0);
+    analogWrite(sprayPort, 1023);
+    digitalWrite(13, HIGH);
+    Serial.println("writing high");
+    Serial.println(timePassed);
   }
   else {
     topStringCur += " in " + String(sprayDelays[sprayDelay] - timePassed / 1000);
     bottomStringCur = String(spraysLeft) + F(" shots left");
-    analogWrite(sprayPort, 1023);
+    //analogWrite(sprayPort, 1023);
+    //digitalWrite(13, HIGH);
   }
 }
 
