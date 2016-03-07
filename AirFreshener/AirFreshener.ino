@@ -165,7 +165,7 @@ void IdleChange() {
 }
 void InUseChange(){
   // If a menu button is pressed.
-  if (analogButtonCur == 0) {
+  if (analogButtonPrev == 0 && analogButtonCur) {
     currentState = 2;
     MenuActions();
   }
@@ -321,13 +321,13 @@ void SprayActions(){
       spraying = false;
     }
   }
-  else if (timePassed >= (unsigned long)(sprayDelays[sprayDelay] + 1) * 1000) {
-    digitalWrite(sprayPort, LOW);
+  else if (timePassed >= (unsigned long)sprayDelays[sprayDelay] * 1000 + 1000) {
+    analogWrite(sprayPort, 0);
   }
   else {
     topStringCur += " in " + String(sprayDelays[sprayDelay] - timePassed / 1000);
     bottomStringCur = String(spraysLeft) + F(" shots left");
-    digitalWrite(sprayPort, HIGH);
+    analogWrite(sprayPort, 1023);
   }
 }
 
