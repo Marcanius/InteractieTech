@@ -16,7 +16,7 @@ const byte buttonPort = 2;
 const byte analogButtonsPort = A1;
 const byte sprayPort = A2;
 const byte lightPort = A0;
-const byte ledPort = 13;
+const byte ledPort1 = 13, ledPort2 = A3;
 LiquidCrystal lcd(12, 11, 5, 4, 6, 7);
 OneWire oneWire(tempPort);
 DallasTemperature tempSensor(&oneWire);
@@ -134,11 +134,11 @@ void loop() {
       break;
   }
 
-  if (noOneThere()) {
-    digitalWrite(13, HIGH);
+  if (currentState != 0) {
+    analogWrite(ledPort2, 1023);
   }
   else {
-    digitalWrite(13, LOW);
+    analogWrite(ledPort2, 0);
   }
   
   printLCD();
@@ -158,7 +158,7 @@ void IdleChange() {
 }
 void InUseChange(){
   // If the (first) menu button is pressed, go to Menu.
-  if (analogButtonPrev == 0 && analogButtonCur) {
+  if (analogButtonPrev == 0 && analogButtonCur == -1) {
     currentState = 2;
     MenuActions();
   }
@@ -171,7 +171,7 @@ void InUseChange(){
       spraying = false;
       IdleActions();
     }
-    if (usageMode < 3) {
+    else {
       // Else (if usage mode was Number 1 or 2), go to Spraying.
       currentState = 3;
       spraying = true;
@@ -317,6 +317,14 @@ void InUseActions(){
 
   // Show the usage mode on the bottom line of the LCD screen
   bottomStringCur = usageNames[usageMode];
+
+  int bottomStringLength = bottomStringCur.length();
+  String inUseTime = String((currentTime - inUseStartTime) / 1000);
+  int inUseTimeLength = inUseTime.length();
+  for (int i = 0; i < 16 - bottomStringLength - inUseTimeLength - 1; i++) {
+    bottomStringCur += " ";
+  }
+  bottomStringCur += inUseTime + "s";
 }
 void SprayActions(){
   if (sprayAmount == 0) {
@@ -349,7 +357,13 @@ void SprayActions(){
     }
   }
 
+  // Let the (first) LED blink.
+  digitalWrite(ledPort1, ((currentTime - sprayStartTime) / 500) % 2);
+
+  // Show how many seconds are left until the air freshener starts spraying.
   topStringCur += " in " + String(max(sprayDelays[sprayDelay] - timePassed / 1000, 0));
+  
+  // Switch between what to show on (the bottom line of) the LCD screen.
   unsigned long modulo = timePassed % 10000;
   if (modulo < 4000) {
     bottomStringCur = String(spraysLeft) + " shots left";
