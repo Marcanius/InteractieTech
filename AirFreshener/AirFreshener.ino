@@ -51,8 +51,8 @@ unsigned long tempUpdatedTime;
 // has to give HIGH to switch to 'cleaning' instead of 'number 1'.
 const int cleaningMotionPercentage = 95;
 unsigned long timesChecked, highTimes;
-const unsigned long numberOneTime = 6000;
-const unsigned long numberTwoTime = 5000;
+const unsigned long numberOneTime = 15000;
+const unsigned long numberTwoTime = 60000;
 unsigned long lastCheckTimee;
 int timesNoOneThere;
 
@@ -358,10 +358,10 @@ void SprayActions(){
   }
 
   // Let the (first) LED blink.
-  digitalWrite(ledPort1, ((currentTime - sprayStartTime) / 500) % 2);
+  digitalWrite(ledPort1, (timePassed / 500 + 1) % 2);
 
   // Show how many seconds are left until the air freshener starts spraying.
-  topStringCur += " in " + String(max(sprayDelays[sprayDelay] - timePassed / 1000, 0));
+  topStringCur += " in " + String(sprayDelays[sprayDelay] - min(timePassed / 1000, sprayDelays[sprayDelay]));
   
   // Switch between what to show on (the bottom line of) the LCD screen.
   unsigned long modulo = timePassed % 10000;
