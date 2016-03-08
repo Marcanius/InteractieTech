@@ -23,7 +23,6 @@ DallasTemperature tempSensor(&oneWire);
 NewPing sonar(triggerPort, echoPort, 100);
 
 // SensorData
-//int magnetVoltCur, magnetVoltPrev;
 volatile byte motion;
 byte buttonPrev, buttonCur;
 char analogButtonPrev, analogButtonCur;
@@ -60,8 +59,9 @@ int timesNoOneThere;
 // Spray variables
 volatile int sprayAmount = 0;
 unsigned long sprayStartTime;
-byte sprayDelays[] = { 1, 2, 5, 10, 15, 20, 30, 45, 60 };
-byte sprayDelay = 6;
+unsigned int sprayDelays[] = { 15, 30, 45, 60, 90, 120, 180, 240, 300 };
+byte sprayDelay = 0;
+const unsigned int airFreshenerDelay = 15;
 const int maxSpraysLeft = 2400;
 int spraysLeft = maxSpraysLeft;
 volatile bool spraying = false;
@@ -79,7 +79,7 @@ char* usageNames[] = {
   "Cleaning"
 };
 char* menuItemNames[] = {
-  ">Spray delay: ",
+  ">Spray delay:",
   ">Reset # shots",
   ">Exit"
 };
@@ -214,6 +214,9 @@ void MenuActions(){
   // Show the menu options and currently selected one.
   bottomStringCur = menuItemNames[activeMenuItem];
   if (activeMenuItem == 0) {
+    if (sprayDelays[sprayDelay] < 100) {
+      bottomStringCur += " ";
+    }
     bottomStringCur += String(sprayDelays[sprayDelay]);
   }
 
@@ -324,29 +327,38 @@ void SprayActions(){
   unsigned long currentTime = millis();
   unsigned long timePassed = currentTime - sprayStartTime;
 
-  // During the delay + 1.0 seconds, show how much time is left on the LCD screen.
-  if (timePassed < (unsigned long)sprayDelays[sprayDelay] * 1000 + 1000) {
-    topStringCur += " in " + String(sprayDelays[sprayDelay] - timePassed / 1000);
-    bottomStringCur = String(spraysLeft) + F(" shots left");
+  // During the sprayDelay - airFreshenerDelay, do nothing.
+  if (timePassed < (unsigned long)(sprayDelays[sprayDelay] - airFreshenerDelay) * 1000) {
+
+  }
+  // After sprayDelay - airFreshenerDelay seconds until sprayDelay + 1 seconds, turn on the mosfet/air freshener.
+  else if (timePassed < (unsigned long)sprayDelays[sprayDelay] * 1000 + 1000) {
     analogWrite(sprayPort, 1023);
   }
-  // After the delay + 1.0 seconds, turn off the mosfet/air freshener.
-  else if (timePassed < (unsigned long)sprayDelays[sprayDelay] * 1000 + 2000) {
-    topStringCur = "Don't forget to";
-    bottomStringCur = "close the lid!";
+  // After sprayDelay + 1 seconds until sprayDelay + 1.5 seconds, turn off the mosfet/air freshener.
+  else if (timePassed < (unsigned long)sprayDelays[sprayDelay] * 1000 + 1500) {
     analogWrite(sprayPort, 0);
   }
-  // After the delay + 2.0 seconds, stop spraying or spray again.
+  // After sprayDelay + 1.5 seconds, stop spraying or spray again.
   else {
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
-    analogWrite(sprayPort, 0);
-    digitalWrite(13, LOW);
-    Serial.print("writing low");
     if (sprayAmount <= 0) {
       spraying = false;
     }
+  }
+
+  topStringCur += " in " + String(max(sprayDelays[sprayDelay] - timePassed / 1000, 0));
+  unsigned long modulo = timePassed % 10000;
+  if (modulo < 4000) {
+    bottomStringCur = String(spraysLeft) + " shots left";
+  }
+  else if (modulo < 7000) {
+    bottomStringCur = "Don't forget to";
+  }
+  else {
+    bottomStringCur = "close the lid!";
   }
 }
 
@@ -359,7 +371,7 @@ bool noOneThere() {
   unsigned long currentTime = millis();
   if (currentTime - lastCheckTimee >= 500) {
     lastCheckTimee = currentTime;
-    if (sonar.ping_cm() == 0 && motion == LOW && getAnalogButtonPressed() == -1) {
+    if (sonar.ping_cm() == 0 && motion == LOW && getAnalogButtonPressed() == 2) {
       timesNoOneThere++;
     }
     else {
@@ -443,11 +455,14 @@ void sprayInterrupt() {
   buttonCur = digitalRead(buttonPort);
   if (buttonPrev == HIGH && buttonCur == LOW) {
     lastInterruptTime = millis();
-    sprayAmount++;
     if (!spraying) {
+      sprayAmount = 1;
       spraying = true;
       sprayStartTime = millis();
       currentState = 3;
+    }
+    else {
+      sprayAmount++;
     }
   }
   buttonPrev = buttonCur;
