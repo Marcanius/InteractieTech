@@ -1,5 +1,3 @@
-#include <NewPing.h>
-
 // Libraries
 #include <LiquidCrystal.h>
 #include <DallasTemperature.h>
