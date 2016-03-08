@@ -40,7 +40,7 @@ unsigned long lastInterruptTime;
 unsigned long lastAnalogButtonReadTime;
 
 // Menu variables
-byte activeMenuItem = 2;
+byte activeMenuItem;
 bool exitPressed = false;
 
 // In Use variables
@@ -53,7 +53,7 @@ const int cleaningMotionPercentage = 95;
 unsigned long timesChecked, highTimes;
 const unsigned long numberOneTime = 15000;
 const unsigned long numberTwoTime = 60000;
-unsigned long lastCheckTimee;
+unsigned long lastCheckTime;
 int timesNoOneThere;
 
 // Spray variables
@@ -150,7 +150,6 @@ void IdleChange() {
     currentState = 1;
     usageMode = 0;
     inUseStartTime = millis();
-    InUseActions();
   }
   else {
     IdleActions();
@@ -160,7 +159,6 @@ void InUseChange(){
   // If the (first) menu button is pressed, go to Menu.
   if (analogButtonPrev == 0 && analogButtonCur == -1) {
     currentState = 2;
-    MenuActions();
   }
   // If no one's there (for 5 seconds), go to Spraying or Idle
   else if (noOneThere()) {
@@ -169,14 +167,12 @@ void InUseChange(){
     if (usageMode == 3) {
       currentState = 0;
       spraying = false;
-      IdleActions();
     }
     else {
       // Else (if usage mode was Number 1 or 2), go to Spraying.
       currentState = 3;
       spraying = true;
       sprayStartTime = millis();
-      SprayActions();
     }
   }
   else {
@@ -188,7 +184,6 @@ void MenuChange(){
   if (exitPressed){
     currentState = 0;
     exitPressed = false;
-    IdleActions();
   }
   else{
     MenuActions();
@@ -198,7 +193,6 @@ void SprayChange(){
   // If we have finished spraying, go to Idle.
   if (!spraying){
     currentState = 0;
-    IdleActions();
   }
   else{
     SprayActions();
@@ -208,7 +202,6 @@ void SprayChange(){
 void IdleActions(){
   // Do nothing.
   bottomStringCur = "";
-  return;
 }
 void MenuActions(){
   // Show the menu options and currently selected one.
@@ -383,8 +376,8 @@ bool noOneThere() {
   // * and the toilet lid is closed.
   // If all of these are true for 5 seconds, then no one is there.
   unsigned long currentTime = millis();
-  if (currentTime - lastCheckTimee >= 500) {
-    lastCheckTimee = currentTime;
+  if (currentTime - lastCheckTime >= 500) {
+    lastCheckTime = currentTime;
     if (sonar.ping_cm() == 0 && motion == LOW && getAnalogButtonPressed() == 2) {
       timesNoOneThere++;
     }
