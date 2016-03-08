@@ -341,6 +341,9 @@ void SprayActions(){
     sprayStartTime = currentTime;
     sprayAmount--;
     spraysLeft--;
+    analogWrite(sprayPort, 0);
+    digitalWrite(13, LOW);
+    Serial.print("writing low");
     if (sprayAmount <= 0) {
       spraying = false;
     }
